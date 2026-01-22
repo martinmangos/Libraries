@@ -1899,7 +1899,7 @@
                         Parent = Items.Background;
                         TextColor3 = themes.preset.accent;
                         TextStrokeColor3 = rgb(255, 255, 255);
-                        Text = 'octohook.xyz <font color = "rgb(235, 235, 235)">@placeholder / UID @ / Developer / 00/00/0000 / 00:00:00 / 0fps / Oms</font>';
+                        Text = 'Elisium.lol <font color = "rgb(235, 235, 235)">@placeholder / UID @ / Developer / 00/00/0000 / 00:00:00 / 0fps / Oms</font>';
                         Name = "\0";
                         AutomaticSize = Enum.AutomaticSize.XY;
                         BorderSizePixel = 0;
@@ -3904,7 +3904,7 @@
 
         function Library:Label(properties)
             local Cfg = {
-                Name = properties.Name or "Label",
+                Name = properties.Name or "Elisium.lol Streamable",
 
                 -- Other
                 Items = {};
