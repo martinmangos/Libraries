@@ -1257,7 +1257,14 @@
 					end
 				end
 
-				library:tween(blur, {Size = bool and (flags["Blur Size"] or 15) or 0})
+				if bool then
+					blur.Enabled = true
+					library:tween(blur, {Size = (flags["Blur Size"] or 15)})
+				else
+					-- Force cleanup so blur never gets stuck after closing the menu.
+					blur.Size = 0
+					blur.Enabled = false
+				end
 
 				dock_outline.Visible = bool;
 
@@ -1694,7 +1701,7 @@
 				end})
 				local section = column:section({name = "Other"})
 				section:label({name = "UI Bind"})
-				:keybind({callback = window.set_menu_visibility, key = Enum.KeyCode.Insert})
+				:keybind({callback = window.set_menu_visibility, key = Enum.KeyCode.RightControl})
 				section:toggle({name = "Keybind List", flag = "keybind_list", callback = function(bool)
 					library.keybind_list_frame.Visible = bool
 				end})
