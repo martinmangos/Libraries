@@ -1,8 +1,8 @@
 --[[
     Octohook
-    -> Made by @finobe 
+    -> Made by @d 
     -> Kind of got bored idk what to do with life
-    -> Reason for leak: cp7
+    -> Reason for leak: 
     User was offered free features when the library was finished as compensation for the wait
     Then proceeded to ask for more and started harassing other customers and me over petty shit. 
     Yes this user said the library is TRASH somehow.. sob
@@ -45,15 +45,15 @@
 
     local themes = {
         preset = {
-            inline = rgb(46, 46, 46),
-            outline = rgb(10, 10, 15),
-            accent = rgb(19, 128, 225),
-            background = rgb(20, 20, 25),              
-            misc_1 = rgb(30, 30, 35),
-            text_color = rgb(245, 245, 245),
-            unselected = rgb(145, 145, 145),
-            tooltip = rgb(73, 73, 73),
-            misc_2 = rgb(23, 23, 28),
+            inline = rgb(38, 38, 43),
+            outline = rgb(12, 12, 16),
+            accent = rgb(120, 60, 200),
+            background = rgb(18, 18, 22),
+            misc_1 = rgb(26, 26, 31),
+            text_color = rgb(230, 230, 230),
+            unselected = rgb(130, 130, 135),
+            tooltip = rgb(65, 65, 70),
+            misc_2 = rgb(20, 20, 25),
             font = "ProggyClean",
             textsize = 12
         },
@@ -133,6 +133,8 @@
     }
         
     Library.__index = Library
+    Library._ActiveSlider = nil
+    Library._OpenElements = {}
 
     for _,path in Library.Folders do 
         makefolder(Library.Directory .. path)
@@ -623,30 +625,46 @@
                         Flag = Cfg.Flag .. "_RAINBOW_FLAG"
                     })
 
-                    task.spawn(function()
-                        while true do 
-                            task.wait()
-                            local Flag = Flags[Cfg.Flag .. "_RAINBOW_FLAG"]
+                    local RainbowConnection
 
-                            if not Flag then 
-                                continue 
-                            end 
+                    local function UpdateRainbow()
+                        local Flag = Flags[Cfg.Flag .. "_RAINBOW_FLAG"]
 
-                            if not Cfg.Set then 
-                                continue 
+                        if not Flag or not Cfg.Set or #Flag == 0 then
+                            return
+                        end
+
+                        local HasRainbow = table.find(Flag, "Rainbow")
+                        local HasBreathing = table.find(Flag, "Breathing")
+
+                        if not HasRainbow and not HasBreathing then
+                            return
+                        end
+
+                        local Sine = math.abs(math.sin(tick()))
+                        local Hue = HasRainbow and Sine or h
+                        local Alpha = HasBreathing and Sine or a
+
+                        Cfg.Set(hsv(Hue, s, v), Alpha)
+                    end
+
+                    local OriginalCallback = Items.Animations.Callback
+                    Items.Animations.Callback = function(value)
+                        if OriginalCallback then
+                            OriginalCallback(value)
+                        end
+
+                        if value and #value > 0 and (table.find(value, "Rainbow") or table.find(value, "Breathing")) then
+                            if not RainbowConnection then
+                                RainbowConnection = Library:Connection(RunService.RenderStepped, UpdateRainbow)
                             end
-
-                            if #Flag == 0 then 
-                                continue 
-                            end 
-
-                            local Sine = math.abs(math.sin(tick()))
-                            local Hue = table.find(Flag, "Rainbow") and Sine or h 
-                            local Alpha = table.find(Flag, "Breathing") and Sine or a
-
-                            Cfg.Set(hsv(Hue, s, v), Alpha) 
-                        end     
-                    end)
+                        else
+                            if RainbowConnection then
+                                RainbowConnection:Disconnect()
+                                RainbowConnection = nil
+                            end
+                        end
+                    end
 
                     Items.SatValHolder = Library:Create( "TextButton" , {
                         Active = false;
@@ -884,6 +902,17 @@
                     });
                 --
             end
+
+            local ColorpickerCanvas = Instance.new("CanvasGroup")
+            ColorpickerCanvas.Size = UDim2.fromScale(1, 1)
+            ColorpickerCanvas.BackgroundTransparency = 1
+            ColorpickerCanvas.Parent = Items.Colorpicker
+
+            for _, child in Items.Colorpicker:GetChildren() do
+                if child ~= ColorpickerCanvas then
+                    child.Parent = ColorpickerCanvas
+                end
+            end
             
             function Cfg.SetVisible(bool)
                 if Cfg.Tweening == true then
@@ -908,25 +937,10 @@
                     Items.Colorpicker.Parent = Library.Items
                 end
 
-                local Children = Items.Colorpicker:GetDescendants()
-                table.insert(Children, Items.Colorpicker)
-
-                local Tween;
-                for _,obj in Children do
-                    local Index = Library:GetTransparency(obj)
-
-                    if not Index then 
-                        continue 
-                    end
-
-                    if type(Index) == "table" then
-                        for _,prop in Index do
-                            Tween = Library:Fade(obj, prop, bool, Library.TweeningSpeed)
-                        end
-                    else
-                        Tween = Library:Fade(obj, Index, bool, Library.TweeningSpeed)
-                    end
-                end
+                ColorpickerCanvas.GroupTransparency = bool and 1 or 0
+                local Tween = Library:Tween(ColorpickerCanvas, {
+                    GroupTransparency = bool and 0 or 1
+                })
 
                 Library:Connection(Tween.Completed, function()
                     Cfg.Tweening = false
@@ -1109,12 +1123,63 @@
         end 
 
         function Library:Connection(signal, callback)
-            local connection = signal:Connect(callback)
-            
-            table.insert(Library.Connections, connection)
+            local index
+            local connection
+            local disconnected = false
 
-            return connection 
+            connection = signal:Connect(function(...)
+                callback(...)
+            end)
+
+            index = #Library.Connections + 1
+
+            local wrapper = setmetatable({}, {
+                __index = connection
+            })
+
+            function wrapper:Disconnect()
+                if disconnected then
+                    return
+                end
+
+                disconnected = true
+                connection:Disconnect()
+                Library.Connections[index] = nil
+            end
+
+            Library.Connections[index] = wrapper
+
+            return wrapper
         end
+
+        Library:Connection(InputService.InputChanged, function(input)
+            if not Library._ActiveSlider then
+                return
+            end
+
+            if input.UserInputType ~= Enum.UserInputType.MouseMovement then
+                return
+            end
+
+            local Cfg = Library._ActiveSlider
+            local Size = (input.Position.X - Cfg.Items.Outline.AbsolutePosition.X) / Cfg.Items.Outline.AbsoluteSize.X
+            local Value = ((Cfg.Max - Cfg.Min) * Size) + Cfg.Min
+            Cfg.Set(Value)
+        end)
+
+        Library:Connection(InputService.InputBegan, function(input, game_event)
+            if input.UserInputType ~= Enum.UserInputType.MouseButton1 then
+                return
+            end
+
+            for cfg, _ in Library._OpenElements do
+                if cfg._CloseCheck and cfg._CloseCheck(input) then
+                    cfg.SetVisible(false)
+                    cfg.Open = false
+                    Library._OpenElements[cfg] = nil
+                end
+            end
+        end)
 
         function Library:CloseElement() 
             local IsMulti = typeof(Library.OpenElement)
@@ -1144,15 +1209,39 @@
                 ins[prop] = value
             end
 
+            local function IsThemed(theme, prop, instance)
+                local Theme = themes.utility[theme]
+                local Property = Theme and Theme[prop]
+
+                if not Property then
+                    return false
+                end
+
+                for _, object in Property do
+                    if object == instance then
+                        return true
+                    end
+                end
+
+                return false
+            end
+
             if ins.ClassName == "TextButton" then 
                 ins["AutoButtonColor"] = false 
                 ins["Text"] = ""
-                Library:Themify(ins, "text_color", "TextColor3")
+                if not IsThemed("text_color", "TextColor3", ins) then
+                    Library:Themify(ins, "text_color", "TextColor3")
+                end
             end 
 
             if ins.ClassName == "TextLabel" or ins.ClassName == "TextBox" then 
-                Library:Themify(ins, "text_color", "TextColor3")
-                Library:Themify(ins, "unselected", "TextColor3")
+                if not IsThemed("text_color", "TextColor3", ins) then
+                    Library:Themify(ins, "text_color", "TextColor3")
+                end
+
+                if not IsThemed("unselected", "TextColor3", ins) then
+                    Library:Themify(ins, "unselected", "TextColor3")
+                end
             end 
 
             return ins 
@@ -1183,6 +1272,8 @@
                 connection:Disconnect() 
                 connection = nil 
             end
+
+            Library.Connections = {}
 
             if Library.Blur then 
                 Library.Blur:Destroy()
@@ -1939,6 +2030,28 @@
                 -- 
             end
 
+            local ItemsCanvas = Instance.new("CanvasGroup")
+            ItemsCanvas.Size = UDim2.fromScale(1, 1)
+            ItemsCanvas.BackgroundTransparency = 1
+            ItemsCanvas.Parent = Library.Items
+            Library.ItemsCanvas = ItemsCanvas
+
+            for _, child in Library.Items:GetChildren() do
+                if child ~= ItemsCanvas then
+                    child.Parent = ItemsCanvas
+                end
+            end
+
+            Library:Connection(Library.Items.ChildAdded, function(child)
+                if child ~= ItemsCanvas and child:IsA("GuiObject") then
+                    child.Parent = ItemsCanvas
+                end
+            end)
+
+            local WatermarkConnection
+            local ConnectWatermark
+            local DisconnectWatermark
+
             function Cfg.ChangeMenuTitle(string)
                 Items.Title.Text = string
             end 
@@ -1950,6 +2063,11 @@
 
             function Cfg.SetWatermarkVisible(bool)
                 Items.Watermark.Visible = bool
+                if bool then
+                    ConnectWatermark()
+                else
+                    DisconnectWatermark()
+                end
             end
 
             function Cfg.SetVisible(bool)
@@ -1973,25 +2091,10 @@
                     Library.Items.Enabled = true
                 end
 
-                local Children = Library.Items:GetDescendants()
-                table.insert(Children, Items.Holder)
-
-                local Tween;
-                for _,obj in Children do
-                    local Index = Library:GetTransparency(obj)
-
-                    if not Index then 
-                        continue 
-                    end
-
-                    if type(Index) == "table" then
-                        for _,prop in Index do
-                            Tween = Library:Fade(obj, prop, bool)
-                        end
-                    else
-                        Tween = Library:Fade(obj, Index, bool)
-                    end
-                end
+                ItemsCanvas.GroupTransparency = bool and 1 or 0
+                local Tween = Library:Tween(ItemsCanvas, {
+                    GroupTransparency = bool and 0 or 1
+                })
 
                 Library:Connection(Tween.Completed, function()
                     Library.Tweening = false
@@ -2001,27 +2104,36 @@
             
             Cfg.SetVisible(true)
 
-            Library:Connection(RunService.RenderStepped, function()
-                if not Items.Watermark.Visible then 
-                    return 
-                end 
+            ConnectWatermark = function()
+                if WatermarkConnection then
+                    return
+                end
 
-                local Tick = tick()
-                Cfg.Fps += 1 
+                WatermarkConnection = Library:Connection(RunService.RenderStepped, function()
+                    local Tick = tick()
+                    Cfg.Fps += 1 
 
-                Items.FadingGradient.Offset = vec2(math.sin(Tick), 0) 
+                    Items.FadingGradient.Offset = vec2(math.sin(Tick), 0) 
 
-                if Tick - Cfg.Tick >= 1 then 
-                    Cfg.Tick = Tick
+                    if Tick - Cfg.Tick >= 1 then 
+                        Cfg.Tick = Tick
 
-                    local Uid = 1
-                    local Status = "Developer"
-                    local Ping = math.floor(Stats.PerformanceStats.Ping:GetValue())
-                    Cfg.ChangeWatermarkTitle(string.format('%s <font color = "%s">/ UID %s / %s / %s / %sfps / %sms</font>', Cfg.Name, Library:ConvertHex(themes.preset.text_color), Uid, Status, os.date("%x / %X"), Cfg.Fps, Ping))
+                        local Uid = 1
+                        local Status = "Developer"
+                        local Ping = math.floor(Stats.PerformanceStats.Ping:GetValue())
+                        Cfg.ChangeWatermarkTitle(string.format('%s <font color = "%s">/ UID %s / %s / %s / %sfps / %sms</font>', Cfg.Name, Library:ConvertHex(themes.preset.text_color), Uid, Status, os.date("%x / %X"), Cfg.Fps, Ping))
 
-                    Cfg.Fps = 0
-                end 
-            end)
+                        Cfg.Fps = 0
+                    end 
+                end)
+            end
+
+            DisconnectWatermark = function()
+                if WatermarkConnection then
+                    WatermarkConnection:Disconnect()
+                    WatermarkConnection = nil
+                end
+            end
 
             return setmetatable(Cfg, Library)
         end 
@@ -2328,6 +2440,17 @@
                 -- 
             end 
 
+            local WindowCanvas = Instance.new("CanvasGroup")
+            WindowCanvas.Size = UDim2.fromScale(1, 1)
+            WindowCanvas.BackgroundTransparency = 1
+            WindowCanvas.Parent = Items.Window
+
+            for _, child in Items.Window:GetChildren() do
+                if child ~= WindowCanvas then
+                    child.Parent = WindowCanvas
+                end
+            end
+
             do -- Other
                 Library:Draggify(Items.Window)
                 Library:Resizify(Items.Window)
@@ -2366,25 +2489,10 @@
                     Items.Window.Visible = true
                 end
 
-                local Children = Items.Window:GetDescendants()
-                table.insert(Children, Items.Window)
-
-                local Tween;
-                for _,obj in Children do
-                    local Index = Library:GetTransparency(obj)
-
-                    if not Index then 
-                        continue 
-                    end
-
-                    if type(Index) == "table" then
-                        for _,prop in Index do
-                            Tween = Library:Fade(obj, prop, bool)
-                        end
-                    else
-                        Tween = Library:Fade(obj, Index, bool)
-                    end
-                end
+                WindowCanvas.GroupTransparency = bool and 1 or 0
+                local Tween = Library:Tween(WindowCanvas, {
+                    GroupTransparency = bool and 0 or 1
+                })
 
                 Library:Connection(Tween.Completed, function()
                     Cfg.Tweening = false
@@ -2476,7 +2584,7 @@
                 -- Page Directory
                     Items.Page = Library:Create( "Frame" , {
                         BorderColor3 = rgb(0, 0, 0);
-                        Parent = Library.Other; -- self.Items.PageHolder
+                        Parent = self.Items.PageHolder;
                         Name = "\0";
                         Visible = false;
                         BackgroundTransparency = 1;
@@ -2497,6 +2605,19 @@
                     });
                 --
             end 
+
+            local PageCanvas = Instance.new("CanvasGroup")
+            PageCanvas.Size = UDim2.fromScale(1, 1)
+            PageCanvas.BackgroundTransparency = 1
+            PageCanvas.Parent = Items.Page
+            Items.Canvas = PageCanvas
+            Items.PageCanvas = PageCanvas
+
+            for _, child in Items.Page:GetChildren() do
+                if child ~= PageCanvas then
+                    child.Parent = PageCanvas
+                end
+            end
 
             function Cfg.OpenTab() 
                 local Tab = self.TabInfo
@@ -2525,33 +2646,15 @@
 
                 if bool then 
                     Items.Page.Visible = true
-                    Items.Page.Parent = self.Items.PageHolder
                 end
 
-                local Children = Items.Page:GetDescendants()
-                table.insert(Children, Items.Page)
-
-                local Tween;
-                for _,obj in Children do
-                    local Index = Library:GetTransparency(obj)
-
-                    if not Index then 
-                        continue 
-                    end
-
-                    if type(Index) == "table" then
-                        for _,prop in Index do
-                            Tween = Library:Fade(obj, prop, bool, Library.TweeningSpeed)
-                        end
-                    else
-                        Tween = Library:Fade(obj, Index, bool, Library.TweeningSpeed)
-                    end
-                end
+                local Tween = Library:Tween(Items.Canvas, {
+                    GroupTransparency = bool and 0 or 1
+                })
                 
                 Library:Connection(Tween.Completed, function()
                     Cfg.Tweening = false
                     Items.Page.Visible = bool
-                    Items.Page.Parent = bool and self.Items.PageHolder or Library.Other
                 end)
             end
 
@@ -2577,7 +2680,7 @@
 
             local Items = Cfg.Items; do 
                 Items.Column = Library:Create( "ScrollingFrame" , {
-                    Parent = self.Items.Page;
+                    Parent = self.Items.PageCanvas or self.Items.Page;
                     BackgroundTransparency = 1;
                     Name = "\0";
                     BorderColor3 = rgb(0, 0, 0);
@@ -3094,6 +3197,7 @@
             
             Items.Outline.MouseButton1Down:Connect(function()
                 Cfg.Dragging = true 
+                Library._ActiveSlider = Cfg
             end)
 
             Items.Minus.MouseButton1Click:Connect(function()
@@ -3134,17 +3238,10 @@
                 end)
             end)
 
-            Library:Connection(InputService.InputChanged, function(input)
-                if Cfg.Dragging and input.UserInputType == Enum.UserInputType.MouseMovement then 
-                    local Size = (input.Position.X - Items.Outline.AbsolutePosition.X) / Items.Outline.AbsoluteSize.X
-                    local Value = ((Cfg.Max - Cfg.Min) * Size) + Cfg.Min
-                    Cfg.Set(Value)
-                end
-            end)
-
             Library:Connection(InputService.InputEnded, function(input)
                 if input.UserInputType == Enum.UserInputType.MouseButton1 then
                     Cfg.Dragging = false
+                    Library._ActiveSlider = nil
                 end 
             end)
             
@@ -3305,6 +3402,17 @@
                 -- 
             end 
 
+            local TooltipCanvas = Instance.new("CanvasGroup")
+            TooltipCanvas.Size = UDim2.fromScale(1, 1)
+            TooltipCanvas.BackgroundTransparency = 1
+            TooltipCanvas.Parent = Items.Outline
+
+            for _, child in Items.Outline:GetChildren() do
+                if child ~= TooltipCanvas then
+                    child.Parent = TooltipCanvas
+                end
+            end
+
             function Cfg.Tween(bool) 
                 if Cfg.Tweening then 
                     return 
@@ -3316,25 +3424,10 @@
                     Items.Outline.Visible = true
                 end
 
-                local Children = Items.Outline:GetDescendants()
-                table.insert(Children, Items.Outline)
-
-                local Tween;
-                for _,obj in Children do
-                    local Index = Library:GetTransparency(obj)
-
-                    if not Index then 
-                        continue 
-                    end
-
-                    if type(Index) == "table" then
-                        for _,prop in Index do
-                            Tween = Library:Fade(obj, prop, bool)
-                        end
-                    else
-                        Tween = Library:Fade(obj, Index, bool)
-                    end
-                end
+                TooltipCanvas.GroupTransparency = bool and 1 or 0
+                local Tween = Library:Tween(TooltipCanvas, {
+                    GroupTransparency = bool and 0 or 1
+                })
                 
                 Library:Connection(Tween.Completed, function()
                     Cfg.Tweening = false
@@ -3726,6 +3819,22 @@
                 -- 
             end 
 
+            local DropdownCanvas = Instance.new("CanvasGroup")
+            DropdownCanvas.Size = UDim2.fromScale(1, 1)
+            DropdownCanvas.BackgroundTransparency = 1
+            DropdownCanvas.Parent = Items.DropdownElements
+
+            for _, child in Items.DropdownElements:GetChildren() do
+                if child ~= DropdownCanvas then
+                    child.Parent = DropdownCanvas
+                end
+            end
+
+            Cfg._CloseCheck = function(input)
+                return not Library:Hovering({Items.DropdownElements, Items.Dropdown})
+                    and Items.DropdownElements.Visible
+            end
+
             function Cfg.RenderOption(text)       
                 local Button = Library:Create( "TextButton" , {
                     FontFace = Fonts[themes.preset.font];
@@ -3776,6 +3885,12 @@
                 end
 
                 Cfg.Tween(bool)
+
+                if bool then
+                    Library._OpenElements[Cfg] = true
+                else
+                    Library._OpenElements[Cfg] = nil
+                end
                 
                 Library.OpenElement = Cfg
             end
@@ -3846,25 +3961,10 @@
                     Items.DropdownElements.Visible = true 
                 end
 
-                local Children = Items.DropdownElements:GetDescendants()
-                table.insert(Children, Items.DropdownElements)
-
-                local Tween;
-                for _,obj in Children do
-                    local Index = Library:GetTransparency(obj)
-
-                    if not Index then 
-                        continue 
-                    end
-
-                    if type(Index) == "table" then
-                        for _,prop in Index do
-                            Tween = Library:Fade(obj, prop, bool, Library.TweeningSpeed)
-                        end
-                    else
-                        Tween = Library:Fade(obj, Index, bool, Library.TweeningSpeed)
-                    end
-                end
+                DropdownCanvas.GroupTransparency = bool and 1 or 0
+                local Tween = Library:Tween(DropdownCanvas, {
+                    GroupTransparency = bool and 0 or 1
+                })
 
                 Library:Connection(Tween.Completed, function()
                     Cfg.Tweening = false
@@ -3887,15 +3987,6 @@
                 Cfg.Open = not Cfg.Open 
 
                 Cfg.SetVisible(Cfg.Open)
-            end)
-
-            Library:Connection(InputService.InputBegan, function(input, game_event)
-                if input.UserInputType == Enum.UserInputType.MouseButton1 then
-                    if not Library:Hovering({Items.DropdownElements, Items.Dropdown}) then
-                        Cfg.SetVisible(false)
-                        Cfg.Open = false
-                    end 
-                end 
             end)
 
             if Cfg.Search then 
@@ -4296,6 +4387,22 @@
                 --
             end 
 
+            local InformationCanvas = Instance.new("CanvasGroup")
+            InformationCanvas.Size = UDim2.fromScale(1, 1)
+            InformationCanvas.BackgroundTransparency = 1
+            InformationCanvas.Parent = Items.Information
+
+            for _, child in Items.Information:GetChildren() do
+                if child ~= InformationCanvas then
+                    child.Parent = InformationCanvas
+                end
+            end
+
+            Cfg._CloseCheck = function(input)
+                return not (Library:Hovering(Items.Dropdown.Items.DropdownElements) or Library:Hovering(Items.Information))
+                    and Items.Information.Visible
+            end
+
             function Cfg.SetMode(mode) 
                 Cfg.Mode = mode 
 
@@ -4365,6 +4472,12 @@
                 Items.Information.Position = dim2(0, Items.Keybind.AbsolutePosition.X + 2, 0, Items.Keybind.AbsolutePosition.Y + 74)
                
                 Cfg.Tween(bool)
+
+                if bool then
+                    Library._OpenElements[Cfg] = true
+                else
+                    Library._OpenElements[Cfg] = nil
+                end
             end
 
             function Cfg.Tween(bool) 
@@ -4379,25 +4492,10 @@
                     Items.Information.Parent = Library.Items
                 end
 
-                local Children = Items.Information:GetDescendants()
-                table.insert(Children, Items.Information)
-
-                local Tween;
-                for _,obj in Children do
-                    local Index = Library:GetTransparency(obj)
-
-                    if not Index then 
-                        continue 
-                    end
-
-                    if type(Index) == "table" then
-                        for _,prop in Index do
-                            Tween = Library:Fade(obj, prop, bool, Library.TweeningSpeed)
-                        end
-                    else
-                        Tween = Library:Fade(obj, Index, bool, Library.TweeningSpeed)
-                    end
-                end
+                InformationCanvas.GroupTransparency = bool and 1 or 0
+                local Tween = Library:Tween(InformationCanvas, {
+                    GroupTransparency = bool and 0 or 1
+                })
 
                 Library:Connection(Tween.Completed, function()
                     Cfg.Tweening = false
@@ -4424,13 +4522,6 @@
             end)
 
             Library:Connection(InputService.InputBegan, function(input, game_event) 
-                if input.UserInputType == Enum.UserInputType.MouseButton1 then
-                    if not (Library:Hovering(Items.Dropdown.Items.DropdownElements) or Library:Hovering(Items.Information)) and Items.Information.Visible then
-                        Cfg.SetVisible(false)
-                        Cfg.Open = false;
-                    end 
-                end 
-                
                 if not game_event then
                     local selected_key = input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode or input.UserInputType
 
@@ -4988,26 +5079,6 @@
     -- Notification Library
         local Notifications = Library.Notifications
 
-        function Library:FadeNotification(path, is_fading) -- Horrendous dogshit code from like 500 years ago
-            local fading = is_fading and 1 or 0 
-
-            for _, instance in path:GetDescendants() do 
-                if not instance:IsA("GuiObject") then 
-                    if instance:IsA("UIStroke") then
-                        Library:Tween(instance, {Transparency = fading}, TweenInfo.new(1, Enum.EasingStyle.Exponential, Enum.EasingDirection.InOut, 0, false, 0))
-                    end
-        
-                    continue
-                end 
-        
-                if instance:IsA("TextLabel") then
-                    Library:Tween(instance, {TextTransparency = fading}, TweenInfo.new(1, Enum.EasingStyle.Exponential, Enum.EasingDirection.InOut, 0, false, 0))
-                elseif instance:IsA("Frame") then
-                    Library:Tween(instance, {BackgroundTransparency = instance.Transparency and 0 and is_fading and 1 or 0}, TweenInfo.new(1, Enum.EasingStyle.Exponential, Enum.EasingDirection.InOut, 0, false, 0))
-                end
-            end
-        end 
-
         function Library:ReorderNotifications()
             local Offset = 50
             
@@ -5045,11 +5116,17 @@
                     BorderSizePixel = 0;
                 });	
 
+                Items.Canvas = Instance.new("CanvasGroup")
+                Items.Canvas.Size = UDim2.fromScale(1, 1)
+                Items.Canvas.BackgroundTransparency = 1
+                Items.Canvas.GroupTransparency = 1
+                Items.Canvas.Parent = Items.Holder
+
                 Items.ButtonHolder = Library:Create( "Frame" , {
                     Name = "\0";
                     Position = dim2(0, 0, 1, 5);
                     BorderColor3 = rgb(0, 0, 0);
-                    Parent = Items.Holder;
+                    Parent = Items.Canvas;
                     BorderSizePixel = 0;
                     BackgroundTransparency = 1;
                     AutomaticSize = Enum.AutomaticSize.Y;
@@ -5064,7 +5141,7 @@
                 }); 
 
                 Items.Notification = Library:Create( "Frame" , {
-                    Parent = Items.Holder;
+                    Parent = Items.Canvas;
                     Name = "\0";
                     BackgroundTransparency = 1;
                     Size = dim2(0, 0, 0, 25);
@@ -5153,9 +5230,7 @@
             end     
 
             function Cfg.DestroyNotif() 
-                local Tween = Library:Tween(Items.Holder, {AnchorPoint = vec2(1, 0)}, TweenInfo.new(1, Enum.EasingStyle.Exponential, Enum.EasingDirection.InOut, 0, false, 0))
-                Library:FadeNotification(Items.Holder, true)
-
+                local Tween = Library:Tween(Items.Canvas, {GroupTransparency = 1}, TweenInfo.new(1, Enum.EasingStyle.Exponential, Enum.EasingDirection.InOut))
                 Tween.Completed:Connect(function()
                     Items.Holder:Destroy()
                     Notifications.Notifs[Index] = nil
@@ -5165,7 +5240,8 @@
 
             local Offset = Library:ReorderNotifications()
             Notifications.Notifs[Index] = Items.Holder
-            Library:FadeNotification(Items.Holder, false)
+            Items.Canvas.GroupTransparency = 1
+            Library:Tween(Items.Canvas, {GroupTransparency = 0}, TweenInfo.new(1, Enum.EasingStyle.Exponential, Enum.EasingDirection.InOut))
 
             Library:Tween(Items.Holder, {
                 AnchorPoint = vec2(0, 0), 
@@ -7302,6 +7378,32 @@
                 return setmetatable(Config, Library)
             end
 
+            local ViewportConnection
+
+            local function ConnectViewport()
+                if ViewportConnection then
+                    return
+                end
+
+                ViewportConnection = RunService.RenderStepped:Connect(function()
+                    local Pos, Size = Math:Solve(Cfg.VisualizedModel, Items.ViewportFrame, Items.Camera)
+                    Items.Box.Position = Pos
+                    Items.Box.Size = Size
+                end)
+            end
+
+            local function DisconnectViewport()
+                if ViewportConnection then
+                    ViewportConnection:Disconnect()
+                    ViewportConnection = nil
+                end
+            end
+
+            Cfg.ConnectViewport = ConnectViewport
+            Cfg.DisconnectViewport = DisconnectViewport
+            Items.ConnectViewport = ConnectViewport
+            Items.DisconnectViewport = DisconnectViewport
+
             function Cfg.FlipPage()
                 local OldItems = self.CurrentTab 
 
@@ -7309,11 +7411,15 @@
                     OldItems.Holder.Visible = false
                     OldItems.Holder.Parent = Library.Other
                     Library:Tween(OldItems.Title, {TextColor3 = themes.preset.unselected})
+                    if OldItems.DisconnectViewport then
+                        OldItems.DisconnectViewport()
+                    end
                 end 
 
                 Items.Holder.Visible = true 
                 Items.Holder.Parent = self.Items.ESPHolder
                 Library:Tween(Items.Title, {TextColor3 = themes.preset.text_color})
+                ConnectViewport()
 
                 self.CurrentTab = Cfg.Items
             end
@@ -7363,12 +7469,6 @@
                 end)
 
                 Items.Outline.MouseButton1Click:Connect(Cfg.FlipPage)
-
-                Library:Connection(RunService.RenderStepped, function()	
-                    local Pos, Size = Math:Solve(Cfg.VisualizedModel, Items.ViewportFrame, Items.Camera)
-                    Items.Box.Position = Pos
-                    Items.Box.Size = Size
-                end)
             
                 if not self.CurrentTab then 
                     Cfg.FlipPage() 
@@ -7438,9 +7538,8 @@
             return Ins 
         end
 
-        function Esp:ConvertScreenPoint(world_position)
-            local ViewportSize = Camera.ViewportSize
-            local LocalPos = Camera.CFrame:pointToObjectSpace(world_position) 
+        function Esp:ConvertScreenPoint(world_position, CameraCFrame, ViewportSize)
+            local LocalPos = CameraCFrame:pointToObjectSpace(world_position) 
 
             local AspectRatio = ViewportSize.X / ViewportSize.Y
             local HalfY = -LocalPos.Z * math.tan(math.rad(Camera.FieldOfView / 2))
@@ -7465,19 +7564,19 @@
             return Connection 
         end
 
-        function Esp:BoxSolve(torso)
+        function Esp:BoxSolve(torso, CameraCFrame, ViewportSize)
             if not torso then
                 return nil, nil, nil
             end 
 
-            local ViewportTop = torso.Position + (torso.CFrame.UpVector * 1.8) + Camera.CFrame.UpVector
-            local ViewportBottom = torso.Position - (torso.CFrame.UpVector * 2.5) - Camera.CFrame.UpVector
-            local Distance = (torso.Position - Camera.CFrame.p).Magnitude
+            local ViewportTop = torso.Position + (torso.CFrame.UpVector * 1.8) + CameraCFrame.UpVector
+            local ViewportBottom = torso.Position - (torso.CFrame.UpVector * 2.5) - CameraCFrame.UpVector
+            local Distance = (torso.Position - CameraCFrame.p).Magnitude
 
             local NewDistance = math.floor(Distance * 0.333)
 
-            local Top, TopIsRendered = Esp:ConvertScreenPoint(ViewportTop)
-            local Bottom, BottomIsRendered = Esp:ConvertScreenPoint(ViewportBottom)
+            local Top, TopIsRendered = Esp:ConvertScreenPoint(ViewportTop, CameraCFrame, ViewportSize)
+            local Bottom, BottomIsRendered = Esp:ConvertScreenPoint(ViewportBottom, CameraCFrame, ViewportSize)
             
             local Width = math.max(math.floor(math.abs(Top.X - Bottom.X)), 8)
             local Height = math.max(math.floor(math.max(math.abs(Bottom.Y - Top.Y), Width / 2)), 12)
@@ -7507,7 +7606,15 @@
                 Drawings = { }, 
                 Type = typechar or "player",
                 Handles = { }, 
+                Connections = {},
             }; Data.Chams = Data.Type == "player" and true or false;
+
+            local function PlayerConnection(signal, callback)
+                local connection = signal:Connect(callback)
+                table.insert(Data.Connections, connection)
+
+                return connection
+            end
 
             local Items = Data.Items; do
                 -- Holder
@@ -8183,9 +8290,9 @@
                 Data.Info.Humanoid = Humanoid
                 Data.Info.RootPart = Humanoid.RootPart
 
-                Esp:Connection(Humanoid.HealthChanged, Data.HealthChanged)
-                Esp:Connection(Character.ChildAdded, Data.ToolAdded)
-                Esp:Connection(Character.ChildRemoved, Data.ToolAdded)
+                PlayerConnection(Humanoid.HealthChanged, Data.HealthChanged)
+                PlayerConnection(Character.ChildAdded, Data.ToolAdded)
+                PlayerConnection(Character.ChildRemoved, Data.ToolAdded)
 
                 Data.HealthChanged(Data.Info.Humanoid.Health)
 
@@ -8193,25 +8300,34 @@
             end 
 
             Data.Destroy = function()
+                for _, conn in Data.Connections do
+                    if conn then
+                        conn:Disconnect()
+                    end
+                end
+
+                Data.Connections = {}
+
                 if Items["Holder"] then 
-                    Items["Holder"].Parent = nil
                     Items["Holder"]:Destroy()
                 end 
 
-                Data.Highlight:Destroy()  
+                if Data.Highlight then
+                    Data.Highlight:Destroy()
+                end
 
-                if Esp.Players[index] then 
-                    Esp.Players[index] = nil
+                if Esp.Players[player.Name] then 
+                    Esp.Players[player.Name] = nil
                 end 
             end 
 
             Data.RefreshDescendants()
-            Esp:Connection(Data.Info.Character.ChildAdded, Data.ToolAdded)
-            Esp:Connection(player.CharacterAdded, Data.RefreshDescendants)
+            PlayerConnection(Data.Info.Character.ChildAdded, Data.ToolAdded)
+            PlayerConnection(player.CharacterAdded, Data.RefreshDescendants)
 
             -- Recaching element holders that arent neccessary <- roblox calculates math for them even if they have no objects in them or invisible ;(
             for _,ItemParentor in {Items.Left, Items.Right, Items.Top, Items.Bottom} do  
-                Esp:Connection(ItemParentor.ChildAdded, function()
+                PlayerConnection(ItemParentor.ChildAdded, function()
                     task.wait(.1)
 
                     if ItemParentor.Parent == nil then 
@@ -8221,7 +8337,7 @@
                     ItemParentor.Parent = Items.Holder
                 end)    
 
-                Esp:Connection(ItemParentor.ChildRemoved, function()
+                PlayerConnection(ItemParentor.ChildRemoved, function()
                     task.wait(.1)
                     if #ItemParentor:GetChildren() == 0 then
                         if ItemParentor.Parent == nil then 
@@ -8236,7 +8352,7 @@
             for _,HealthHolder in {"Right", "Left", "Top", "Bottom"} do
                 local Parent = Items["HealthbarTexts" .. HealthHolder]
 
-                Esp:Connection(Parent.ChildAdded, function()
+                PlayerConnection(Parent.ChildAdded, function()
                     task.wait(.1)
 
                     if Parent.Parent == nil then 
@@ -8246,7 +8362,7 @@
                     Parent.Parent = Items[HealthHolder]
                 end)    
 
-                Esp:Connection(Parent.ChildRemoved, function()
+                PlayerConnection(Parent.ChildRemoved, function()
                     task.wait(.1)
                     if #Parent:GetChildren() == 0 then
                         if Parent.Parent == nil then 
@@ -8261,7 +8377,7 @@
             for _,TextHolder in {"Right", "Left", "Bottom", "Top"} do
                 local Parent = Items[TextHolder .. "Texts"]
 
-                Esp:Connection(Parent.ChildAdded, function()
+                PlayerConnection(Parent.ChildAdded, function()
                     task.wait(.1)
 
                     if Parent.Parent == nil then 
@@ -8271,7 +8387,7 @@
                     Parent.Parent = Items[TextHolder]
                 end)    
 
-                Esp:Connection(Parent.ChildRemoved, function()
+                PlayerConnection(Parent.ChildRemoved, function()
                     task.wait(.1)
                     if #Parent:GetChildren() == 0 then
                         if Parent.Parent == nil then 
@@ -8296,6 +8412,9 @@
             if not MiscOptions.Enabled then
                 return 
             end 
+
+            local CameraCFrame = Camera.CFrame
+            local ViewportSize = Camera.ViewportSize
 
             for _,Data in Esp.Players do
                 if not Data.Info then
@@ -8324,12 +8443,32 @@
                     continue 
                 end 
 
-                local BoxSize, BoxPos, OnScreen, Distance = Esp:BoxSolve(Humanoid.RootPart)
                 local Holder = Items["Holder"]
                 
                 if not (Holder or MiscOptions["Render Distance"]) then 
                     continue 
                 end
+
+                local RootPart = Data.Info.RootPart
+
+                if not RootPart then
+                    if Holder.Visible then
+                        Holder.Visible = false
+                    end
+
+                    continue
+                end
+
+                local Distance = (RootPart.Position - CameraCFrame.Position).Magnitude
+                if Distance > MiscOptions["Render Distance"] then
+                    if Holder.Visible then
+                        Holder.Visible = false
+                    end
+
+                    continue
+                end
+
+                local BoxSize, BoxPos, OnScreen, Distance = Esp:BoxSolve(RootPart, CameraCFrame, ViewportSize)
 
                 -- some exploits may be using ways to delete and break the box solve, prevents that
                 if Distance == nil then 
@@ -8657,6 +8796,8 @@
                 connection:Disconnect() 
                 connection = nil
             end 
+
+            Esp.Connections = {}
             
             if Esp.Loop then 
                 RunService:UnbindFromRenderStep("Run Loop")
@@ -8680,6 +8821,14 @@
     end
 
     Esp.Loop = RunService:BindToRenderStep("Run Loop", 400, Esp.Update)
+    Esp:Connection(Players.PlayerAdded, function(player)
+        -- placeholder: games using this library connect their own PlayerAdded
+        -- but we need PlayerRemoving for cleanup
+    end)
+
+    Esp:Connection(Players.PlayerRemoving, function(player)
+        Esp.RemovePlayer(player)
+    end)
 -- 
 
 return Library, Esp, MiscOptions, Options 
