@@ -1,6 +1,6 @@
 --[[
     Octohook
-    -> Made by @d 
+    -> Made by @finobe 
     -> Kind of got bored idk what to do with life
     -> Reason for leak: 
     User was offered free features when the library was finished as compensation for the wait
@@ -903,17 +903,6 @@
                 --
             end
 
-            local ColorpickerCanvas = Instance.new("CanvasGroup")
-            ColorpickerCanvas.Size = UDim2.fromScale(1, 1)
-            ColorpickerCanvas.BackgroundTransparency = 1
-            ColorpickerCanvas.Parent = Items.Colorpicker
-
-            for _, child in Items.Colorpicker:GetChildren() do
-                if child ~= ColorpickerCanvas then
-                    child.Parent = ColorpickerCanvas
-                end
-            end
-            
             function Cfg.SetVisible(bool)
                 if Cfg.Tweening == true then
                     return 
@@ -937,10 +926,25 @@
                     Items.Colorpicker.Parent = Library.Items
                 end
 
-                ColorpickerCanvas.GroupTransparency = bool and 1 or 0
-                local Tween = Library:Tween(ColorpickerCanvas, {
-                    GroupTransparency = bool and 0 or 1
-                })
+                local Children = Items.Colorpicker:GetDescendants()
+                table.insert(Children, Items.Colorpicker)
+
+                local Tween;
+                for _,obj in Children do
+                    local Index = Library:GetTransparency(obj)
+
+                    if not Index then 
+                        continue 
+                    end
+
+                    if type(Index) == "table" then
+                        for _,prop in Index do
+                            Tween = Library:Fade(obj, prop, bool, Library.TweeningSpeed)
+                        end
+                    else
+                        Tween = Library:Fade(obj, Index, bool, Library.TweeningSpeed)
+                    end
+                end
 
                 Library:Connection(Tween.Completed, function()
                     Cfg.Tweening = false
@@ -2030,24 +2034,6 @@
                 -- 
             end
 
-            local ItemsCanvas = Instance.new("CanvasGroup")
-            ItemsCanvas.Size = UDim2.fromScale(1, 1)
-            ItemsCanvas.BackgroundTransparency = 1
-            ItemsCanvas.Parent = Library.Items
-            Library.ItemsCanvas = ItemsCanvas
-
-            for _, child in Library.Items:GetChildren() do
-                if child ~= ItemsCanvas then
-                    child.Parent = ItemsCanvas
-                end
-            end
-
-            Library:Connection(Library.Items.ChildAdded, function(child)
-                if child ~= ItemsCanvas and child:IsA("GuiObject") then
-                    child.Parent = ItemsCanvas
-                end
-            end)
-
             local WatermarkConnection
             local ConnectWatermark
             local DisconnectWatermark
@@ -2091,10 +2077,25 @@
                     Library.Items.Enabled = true
                 end
 
-                ItemsCanvas.GroupTransparency = bool and 1 or 0
-                local Tween = Library:Tween(ItemsCanvas, {
-                    GroupTransparency = bool and 0 or 1
-                })
+                local Children = Library.Items:GetDescendants()
+                table.insert(Children, Items.Holder)
+
+                local Tween;
+                for _,obj in Children do
+                    local Index = Library:GetTransparency(obj)
+
+                    if not Index then 
+                        continue 
+                    end
+
+                    if type(Index) == "table" then
+                        for _,prop in Index do
+                            Tween = Library:Fade(obj, prop, bool)
+                        end
+                    else
+                        Tween = Library:Fade(obj, Index, bool)
+                    end
+                end
 
                 Library:Connection(Tween.Completed, function()
                     Library.Tweening = false
@@ -2440,17 +2441,6 @@
                 -- 
             end 
 
-            local WindowCanvas = Instance.new("CanvasGroup")
-            WindowCanvas.Size = UDim2.fromScale(1, 1)
-            WindowCanvas.BackgroundTransparency = 1
-            WindowCanvas.Parent = Items.Window
-
-            for _, child in Items.Window:GetChildren() do
-                if child ~= WindowCanvas then
-                    child.Parent = WindowCanvas
-                end
-            end
-
             do -- Other
                 Library:Draggify(Items.Window)
                 Library:Resizify(Items.Window)
@@ -2489,10 +2479,25 @@
                     Items.Window.Visible = true
                 end
 
-                WindowCanvas.GroupTransparency = bool and 1 or 0
-                local Tween = Library:Tween(WindowCanvas, {
-                    GroupTransparency = bool and 0 or 1
-                })
+                local Children = Items.Window:GetDescendants()
+                table.insert(Children, Items.Window)
+
+                local Tween;
+                for _,obj in Children do
+                    local Index = Library:GetTransparency(obj)
+
+                    if not Index then 
+                        continue 
+                    end
+
+                    if type(Index) == "table" then
+                        for _,prop in Index do
+                            Tween = Library:Fade(obj, prop, bool)
+                        end
+                    else
+                        Tween = Library:Fade(obj, Index, bool)
+                    end
+                end
 
                 Library:Connection(Tween.Completed, function()
                     Cfg.Tweening = false
@@ -2606,19 +2611,6 @@
                 --
             end 
 
-            local PageCanvas = Instance.new("CanvasGroup")
-            PageCanvas.Size = UDim2.fromScale(1, 1)
-            PageCanvas.BackgroundTransparency = 1
-            PageCanvas.Parent = Items.Page
-            Items.Canvas = PageCanvas
-            Items.PageCanvas = PageCanvas
-
-            for _, child in Items.Page:GetChildren() do
-                if child ~= PageCanvas then
-                    child.Parent = PageCanvas
-                end
-            end
-
             function Cfg.OpenTab() 
                 local Tab = self.TabInfo
 
@@ -2648,9 +2640,25 @@
                     Items.Page.Visible = true
                 end
 
-                local Tween = Library:Tween(Items.Canvas, {
-                    GroupTransparency = bool and 0 or 1
-                })
+                local Children = Items.Page:GetDescendants()
+                table.insert(Children, Items.Page)
+
+                local Tween;
+                for _,obj in Children do
+                    local Index = Library:GetTransparency(obj)
+
+                    if not Index then 
+                        continue 
+                    end
+
+                    if type(Index) == "table" then
+                        for _,prop in Index do
+                            Tween = Library:Fade(obj, prop, bool, Library.TweeningSpeed)
+                        end
+                    else
+                        Tween = Library:Fade(obj, Index, bool, Library.TweeningSpeed)
+                    end
+                end
                 
                 Library:Connection(Tween.Completed, function()
                     Cfg.Tweening = false
@@ -2680,7 +2688,7 @@
 
             local Items = Cfg.Items; do 
                 Items.Column = Library:Create( "ScrollingFrame" , {
-                    Parent = self.Items.PageCanvas or self.Items.Page;
+                    Parent = self.Items.Page;
                     BackgroundTransparency = 1;
                     Name = "\0";
                     BorderColor3 = rgb(0, 0, 0);
@@ -3402,17 +3410,6 @@
                 -- 
             end 
 
-            local TooltipCanvas = Instance.new("CanvasGroup")
-            TooltipCanvas.Size = UDim2.fromScale(1, 1)
-            TooltipCanvas.BackgroundTransparency = 1
-            TooltipCanvas.Parent = Items.Outline
-
-            for _, child in Items.Outline:GetChildren() do
-                if child ~= TooltipCanvas then
-                    child.Parent = TooltipCanvas
-                end
-            end
-
             function Cfg.Tween(bool) 
                 if Cfg.Tweening then 
                     return 
@@ -3424,10 +3421,25 @@
                     Items.Outline.Visible = true
                 end
 
-                TooltipCanvas.GroupTransparency = bool and 1 or 0
-                local Tween = Library:Tween(TooltipCanvas, {
-                    GroupTransparency = bool and 0 or 1
-                })
+                local Children = Items.Outline:GetDescendants()
+                table.insert(Children, Items.Outline)
+
+                local Tween;
+                for _,obj in Children do
+                    local Index = Library:GetTransparency(obj)
+
+                    if not Index then 
+                        continue 
+                    end
+
+                    if type(Index) == "table" then
+                        for _,prop in Index do
+                            Tween = Library:Fade(obj, prop, bool)
+                        end
+                    else
+                        Tween = Library:Fade(obj, Index, bool)
+                    end
+                end
                 
                 Library:Connection(Tween.Completed, function()
                     Cfg.Tweening = false
@@ -3819,17 +3831,6 @@
                 -- 
             end 
 
-            local DropdownCanvas = Instance.new("CanvasGroup")
-            DropdownCanvas.Size = UDim2.fromScale(1, 1)
-            DropdownCanvas.BackgroundTransparency = 1
-            DropdownCanvas.Parent = Items.DropdownElements
-
-            for _, child in Items.DropdownElements:GetChildren() do
-                if child ~= DropdownCanvas then
-                    child.Parent = DropdownCanvas
-                end
-            end
-
             Cfg._CloseCheck = function(input)
                 return not Library:Hovering({Items.DropdownElements, Items.Dropdown})
                     and Items.DropdownElements.Visible
@@ -3961,10 +3962,25 @@
                     Items.DropdownElements.Visible = true 
                 end
 
-                DropdownCanvas.GroupTransparency = bool and 1 or 0
-                local Tween = Library:Tween(DropdownCanvas, {
-                    GroupTransparency = bool and 0 or 1
-                })
+                local Children = Items.DropdownElements:GetDescendants()
+                table.insert(Children, Items.DropdownElements)
+
+                local Tween;
+                for _,obj in Children do
+                    local Index = Library:GetTransparency(obj)
+
+                    if not Index then 
+                        continue 
+                    end
+
+                    if type(Index) == "table" then
+                        for _,prop in Index do
+                            Tween = Library:Fade(obj, prop, bool, Library.TweeningSpeed)
+                        end
+                    else
+                        Tween = Library:Fade(obj, Index, bool, Library.TweeningSpeed)
+                    end
+                end
 
                 Library:Connection(Tween.Completed, function()
                     Cfg.Tweening = false
@@ -4387,17 +4403,6 @@
                 --
             end 
 
-            local InformationCanvas = Instance.new("CanvasGroup")
-            InformationCanvas.Size = UDim2.fromScale(1, 1)
-            InformationCanvas.BackgroundTransparency = 1
-            InformationCanvas.Parent = Items.Information
-
-            for _, child in Items.Information:GetChildren() do
-                if child ~= InformationCanvas then
-                    child.Parent = InformationCanvas
-                end
-            end
-
             Cfg._CloseCheck = function(input)
                 return not (Library:Hovering(Items.Dropdown.Items.DropdownElements) or Library:Hovering(Items.Information))
                     and Items.Information.Visible
@@ -4492,10 +4497,25 @@
                     Items.Information.Parent = Library.Items
                 end
 
-                InformationCanvas.GroupTransparency = bool and 1 or 0
-                local Tween = Library:Tween(InformationCanvas, {
-                    GroupTransparency = bool and 0 or 1
-                })
+                local Children = Items.Information:GetDescendants()
+                table.insert(Children, Items.Information)
+
+                local Tween;
+                for _,obj in Children do
+                    local Index = Library:GetTransparency(obj)
+
+                    if not Index then 
+                        continue 
+                    end
+
+                    if type(Index) == "table" then
+                        for _,prop in Index do
+                            Tween = Library:Fade(obj, prop, bool, Library.TweeningSpeed)
+                        end
+                    else
+                        Tween = Library:Fade(obj, Index, bool, Library.TweeningSpeed)
+                    end
+                end
 
                 Library:Connection(Tween.Completed, function()
                     Cfg.Tweening = false
@@ -5079,6 +5099,26 @@
     -- Notification Library
         local Notifications = Library.Notifications
 
+        function Library:FadeNotification(path, is_fading) -- Horrendous dogshit code from like 500 years ago
+            local fading = is_fading and 1 or 0 
+
+            for _, instance in path:GetDescendants() do 
+                if not instance:IsA("GuiObject") then 
+                    if instance:IsA("UIStroke") then
+                        Library:Tween(instance, {Transparency = fading}, TweenInfo.new(1, Enum.EasingStyle.Exponential, Enum.EasingDirection.InOut, 0, false, 0))
+                    end
+        
+                    continue
+                end 
+        
+                if instance:IsA("TextLabel") then
+                    Library:Tween(instance, {TextTransparency = fading}, TweenInfo.new(1, Enum.EasingStyle.Exponential, Enum.EasingDirection.InOut, 0, false, 0))
+                elseif instance:IsA("Frame") then
+                    Library:Tween(instance, {BackgroundTransparency = instance.Transparency and 0 and is_fading and 1 or 0}, TweenInfo.new(1, Enum.EasingStyle.Exponential, Enum.EasingDirection.InOut, 0, false, 0))
+                end
+            end
+        end 
+
         function Library:ReorderNotifications()
             local Offset = 50
             
@@ -5116,17 +5156,11 @@
                     BorderSizePixel = 0;
                 });	
 
-                Items.Canvas = Instance.new("CanvasGroup")
-                Items.Canvas.Size = UDim2.fromScale(1, 1)
-                Items.Canvas.BackgroundTransparency = 1
-                Items.Canvas.GroupTransparency = 1
-                Items.Canvas.Parent = Items.Holder
-
                 Items.ButtonHolder = Library:Create( "Frame" , {
                     Name = "\0";
                     Position = dim2(0, 0, 1, 5);
                     BorderColor3 = rgb(0, 0, 0);
-                    Parent = Items.Canvas;
+                    Parent = Items.Holder;
                     BorderSizePixel = 0;
                     BackgroundTransparency = 1;
                     AutomaticSize = Enum.AutomaticSize.Y;
@@ -5141,7 +5175,7 @@
                 }); 
 
                 Items.Notification = Library:Create( "Frame" , {
-                    Parent = Items.Canvas;
+                    Parent = Items.Holder;
                     Name = "\0";
                     BackgroundTransparency = 1;
                     Size = dim2(0, 0, 0, 25);
@@ -5230,7 +5264,9 @@
             end     
 
             function Cfg.DestroyNotif() 
-                local Tween = Library:Tween(Items.Canvas, {GroupTransparency = 1}, TweenInfo.new(1, Enum.EasingStyle.Exponential, Enum.EasingDirection.InOut))
+                local Tween = Library:Tween(Items.Holder, {AnchorPoint = vec2(1, 0)}, TweenInfo.new(1, Enum.EasingStyle.Exponential, Enum.EasingDirection.InOut, 0, false, 0))
+                Library:FadeNotification(Items.Holder, true)
+
                 Tween.Completed:Connect(function()
                     Items.Holder:Destroy()
                     Notifications.Notifs[Index] = nil
@@ -5240,8 +5276,7 @@
 
             local Offset = Library:ReorderNotifications()
             Notifications.Notifs[Index] = Items.Holder
-            Items.Canvas.GroupTransparency = 1
-            Library:Tween(Items.Canvas, {GroupTransparency = 0}, TweenInfo.new(1, Enum.EasingStyle.Exponential, Enum.EasingDirection.InOut))
+            Library:FadeNotification(Items.Holder, false)
 
             Library:Tween(Items.Holder, {
                 AnchorPoint = vec2(0, 0), 
@@ -8282,13 +8317,15 @@
                 end 
             end
 
-            Data.RefreshDescendants = function() 
-                local Character = (typechar and player) or player.Character or player.CharacterAdded:Wait()
+            Data.RefreshDescendants = function(NewCharacter) 
+                local Character = typechar and player or NewCharacter or player.Character or player.CharacterAdded:Wait()
                 local Humanoid = Character:FindFirstChild("Humanoid") or Character:WaitForChild( "Humanoid" )
                 
                 Data.Info.Character = typechar and player or Character
                 Data.Info.Humanoid = Humanoid
-                Data.Info.RootPart = Humanoid.RootPart
+                Data.Info.RootPart = Character:FindFirstChild("HumanoidRootPart")
+                    or Character:FindFirstChild("Torso")
+                    or Humanoid.RootPart
 
                 PlayerConnection(Humanoid.HealthChanged, Data.HealthChanged)
                 PlayerConnection(Character.ChildAdded, Data.ToolAdded)
@@ -8452,6 +8489,10 @@
                 local RootPart = Data.Info.RootPart
 
                 if not RootPart then
+                    local CurrentCharacter = Data.Info.Character
+                    RootPart = CurrentCharacter and (CurrentCharacter:FindFirstChild("HumanoidRootPart") or CurrentCharacter:FindFirstChild("Torso")) or nil
+                    Data.Info.RootPart = RootPart
+
                     if Holder.Visible then
                         Holder.Visible = false
                     end
