@@ -2,7 +2,7 @@
     Octohook
     -> Made by @finobe 
     -> Kind of got bored idk what to do with life
-    -> Reason for leak: 
+    -> Reason for leak: cp7
     User was offered free features when the library was finished as compensation for the wait
     Then proceeded to ask for more and started harassing other customers and me over petty shit. 
     Yes this user said the library is TRASH somehow.. sob
@@ -2291,6 +2291,7 @@
                     Items.PageHolder = Library:Create( "Frame" , {
                         Parent = Items.InlineThird;
                         Name = "\0";
+                        ClipsDescendants = true;
                         Position = dim2(0, 1, 0, 1);
                         BorderColor3 = rgb(0, 0, 0);
                         Size = dim2(1, -2, 1, -2);
@@ -2575,15 +2576,27 @@
             }
 
             local Items = Cfg.Items; do 
-                Items.Column = Library:Create( "Frame" , {
+                Items.Column = Library:Create( "ScrollingFrame" , {
                     Parent = self.Items.Page;
                     BackgroundTransparency = 1;
                     Name = "\0";
                     BorderColor3 = rgb(0, 0, 0);
                     Size = dim2(0, 100, 0, 100);
+                    Active = true;
+                    AutomaticCanvasSize = Enum.AutomaticSize.Y;
+                    CanvasSize = dim2(0, 0, 0, 0);
+                    ScrollingDirection = Enum.ScrollingDirection.Y;
+                    ScrollBarThickness = 2;
+                    ScrollBarImageColor3 = themes.preset.accent;
+                    TopImage = "rbxassetid://102257413888451";
+                    MidImage = "rbxassetid://102257413888451";
+                    BottomImage = "rbxassetid://102257413888451";
+                    VerticalScrollBarInset = Enum.ScrollBarInset.ScrollBar;
+                    ClipsDescendants = true;
                     BorderSizePixel = 0;
                     BackgroundColor3 = rgb(255, 255, 255)
                 });
+                Library:Themify(Items.Column, "accent", "ScrollBarImageColor3")
 
                 Library:Create( "UIListLayout" , {
                     Parent = Items.Column;
