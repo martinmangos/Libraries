@@ -626,26 +626,13 @@
                     })
 
                     local RainbowConnection
+                    local cachedHasRainbow = false
+                    local cachedHasBreathing = false
 
                     local function UpdateRainbow()
-                        local Flag = Flags[Cfg.Flag .. "_RAINBOW_FLAG"]
-
-                        if not Flag or not Cfg.Set or #Flag == 0 then
-                            return
-                        end
-
-                        local HasRainbow = table.find(Flag, "Rainbow")
-                        local HasBreathing = table.find(Flag, "Breathing")
-
-                        if not HasRainbow and not HasBreathing then
-                            return
-                        end
-
+                        if not Cfg.Set then return end
                         local Sine = math.abs(math.sin(tick()))
-                        local Hue = HasRainbow and Sine or h
-                        local Alpha = HasBreathing and Sine or a
-
-                        Cfg.Set(hsv(Hue, s, v), Alpha)
+                        Cfg.Set(hsv(cachedHasRainbow and Sine or h, s, v), cachedHasBreathing and Sine or a)
                     end
 
                     local OriginalCallback = Items.Animations.Callback
@@ -654,7 +641,10 @@
                             OriginalCallback(value)
                         end
 
-                        if value and #value > 0 and (table.find(value, "Rainbow") or table.find(value, "Breathing")) then
+                        cachedHasRainbow = value and table.find(value, "Rainbow")
+                        cachedHasBreathing = value and table.find(value, "Breathing")
+
+                        if cachedHasRainbow or cachedHasBreathing then
                             if not RainbowConnection then
                                 RainbowConnection = Library:Connection(RunService.RenderStepped, UpdateRainbow)
                             end
@@ -5957,52 +5947,45 @@
                     return orientation - orientation.p + PointToWorldSpace(orientation, (omax + omin) * 0.5), (omax - omin)
                 end
                 
+                local SOLVE_CORNERS = {
+                    { 0.5,  0.5,  0.5}, {-0.5,  0.5,  0.5},
+                    { 0.5, -0.5,  0.5}, {-0.5, -0.5,  0.5},
+                    { 0.5,  0.5, -0.5}, {-0.5,  0.5, -0.5},
+                    { 0.5, -0.5, -0.5}, {-0.5, -0.5, -0.5},
+                }
+
                 function Math:Solve(model, viewportFrame, Camera)
-                    local min = Vector2.new(math.huge, math.huge)
-                    local max = Vector2.new(-math.huge, -math.huge)
+                    local minX, minY = math.huge, math.huge
+                    local maxX, maxY = -math.huge, -math.huge
 
                     for _,obj in model:GetDescendants() do
                         if obj:IsA("BasePart") then
                             local size = obj.Size
                             local cframe = obj.CFrame
+                            local sx, sy, sz = size.X, size.Y, size.Z
 
-                            local corners = {
-                                Vector3.new( 0.5,  0.5,  0.5),
-                                Vector3.new(-0.5,  0.5,  0.5),
-                                Vector3.new( 0.5, -0.5,  0.5),
-                                Vector3.new(-0.5, -0.5,  0.5),
-                                Vector3.new( 0.5,  0.5, -0.5),
-                                Vector3.new(-0.5,  0.5, -0.5),
-                                Vector3.new( 0.5, -0.5, -0.5),
-                                Vector3.new(-0.5, -0.5, -0.5),
-                            }
-
-                            for _, corner in pairs(corners) do
+                            for i = 1, 8 do
+                                local c = SOLVE_CORNERS[i]
                                 local worldPoint = cframe:PointToWorldSpace(Vector3.new(
-                                    corner.X * size.X,
-                                    corner.Y * size.Y,
-                                    corner.Z * size.Z
-                                    ))
-
-                                local viewportPoint, visible = Camera:WorldToViewportPoint(worldPoint)
-
+                                    c[1] * sx, c[2] * sy, c[3] * sz
+                                ))
+                                local vp, visible = Camera:WorldToViewportPoint(worldPoint)
                                 if visible then
-                                    min = Vector2.new(math.min(min.X, viewportPoint.X), math.min(min.Y, viewportPoint.Y))
-                                    max = Vector2.new(math.max(max.X, viewportPoint.X), math.max(max.Y, viewportPoint.Y))
+                                    local vx, vy = vp.X, vp.Y
+                                    if vx < minX then minX = vx end
+                                    if vy < minY then minY = vy end
+                                    if vx > maxX then maxX = vx end
+                                    if vy > maxY then maxY = vy end
                                 end
                             end
                         end
                     end
 
                     local viewAbsSize = viewportFrame.AbsoluteSize
+                    local absX, absY = viewAbsSize.X, viewAbsSize.Y
 
-                    local size2D = max - min
-                    local pos2D = min
-
-                    local relativePos = Vector2.new(pos2D.X / viewAbsSize.X, pos2D.Y / viewAbsSize.Y)
-                    local relativeSize = Vector2.new(size2D.X / viewAbsSize.X, size2D.Y / viewAbsSize.Y)
-
-                    return UDim2.fromScale(relativePos.X * 200, relativePos.Y * 200), UDim2.fromScale(relativeSize.X * 200, relativeSize.Y * 200)
+                    return UDim2.fromScale(minX / absX * 200, minY / absY * 200),
+                           UDim2.fromScale((maxX - minX) / absX * 200, (maxY - minY) / absY * 200)
                 end
 
                 function Math:FindClosestFrame(Position, Instances, List)
@@ -7573,23 +7556,15 @@
             return Ins 
         end
 
-        function Esp:ConvertScreenPoint(world_position, CameraCFrame, ViewportSize)
-            local LocalPos = CameraCFrame:pointToObjectSpace(world_position) 
-
-            local AspectRatio = ViewportSize.X / ViewportSize.Y
-            local HalfY = -LocalPos.Z * math.tan(math.rad(Camera.FieldOfView / 2))
-            local HalfX = AspectRatio * HalfY
-            
-            local FarPlaneCorner = Vector3.new(-HalfX, HalfY, LocalPos.Z)
-            local RelativePos = LocalPos - FarPlaneCorner
-        
-            local ScreenX = RelativePos.X / (HalfX * 2)
-            local ScreenY = -RelativePos.Y / (HalfY * 2)
-            
+        function Esp:ConvertScreenPoint(world_position, CameraCFrame, ViewportSize, fovTan, aspectRatio)
+            local LocalPos = CameraCFrame:pointToObjectSpace(world_position)
+            local HalfY = -LocalPos.Z * fovTan
+            local HalfX = aspectRatio * HalfY
+            local ScreenX = (LocalPos.X + HalfX) / (HalfX * 2)
+            local ScreenY = -(LocalPos.Y - HalfY) / (HalfY * 2)
             local OnScreen = -LocalPos.Z > 0 and ScreenX >= 0 and ScreenX <= 1 and ScreenY >= 0 and ScreenY <= 1
-            
             -- returns in pixels as opposed to scale
-            return Vector3.new(ScreenX * ViewportSize.X, ScreenY * ViewportSize.Y, -LocalPos.Z), OnScreen
+            return ScreenX * ViewportSize.X, ScreenY * ViewportSize.Y, OnScreen
         end
 
         function Esp:Connection(signal, callback)
@@ -7599,26 +7574,29 @@
             return Connection 
         end
 
-        function Esp:BoxSolve(torso, CameraCFrame, ViewportSize)
+        function Esp:BoxSolve(torso, CameraCFrame, ViewportSize, rawDistance, fovTan, aspectRatio)
             if not torso then
-                return nil, nil, nil
-            end 
+                return nil, nil, nil, nil, nil, nil
+            end
 
-            local ViewportTop = torso.Position + (torso.CFrame.UpVector * 1.8) + CameraCFrame.UpVector
-            local ViewportBottom = torso.Position - (torso.CFrame.UpVector * 2.5) - CameraCFrame.UpVector
-            local Distance = (torso.Position - CameraCFrame.p).Magnitude
+            local pos = torso.Position
+            local upVec = torso.CFrame.UpVector
+            local camUp = CameraCFrame.UpVector
 
-            local NewDistance = math.floor(Distance * 0.333)
+            local TopX, TopY, TopIsRendered = Esp:ConvertScreenPoint(
+                pos + upVec * 1.8 + camUp,
+                CameraCFrame, ViewportSize, fovTan, aspectRatio)
+            local BotX, BotY = Esp:ConvertScreenPoint(
+                pos - upVec * 2.5 - camUp,
+                CameraCFrame, ViewportSize, fovTan, aspectRatio)
 
-            local Top, TopIsRendered = Esp:ConvertScreenPoint(ViewportTop, CameraCFrame, ViewportSize)
-            local Bottom, BottomIsRendered = Esp:ConvertScreenPoint(ViewportBottom, CameraCFrame, ViewportSize)
-            
-            local Width = math.max(math.floor(math.abs(Top.X - Bottom.X)), 8)
-            local Height = math.max(math.floor(math.max(math.abs(Bottom.Y - Top.Y), Width / 2)), 12)
-            local BoxSize = Vector2.new(math.floor(math.max(Height / 1.5, Width)), Height)
-            local BoxPosition = Vector2.new(math.floor(Top.X * 0.5 + Bottom.X * 0.5 - BoxSize.X * 0.5), math.floor(math.min(Top.Y, Bottom.Y)))
-            
-            return BoxSize, BoxPosition, TopIsRendered, NewDistance 
+            local Width = math.max(math.floor(math.abs(TopX - BotX)), 8)
+            local Height = math.max(math.floor(math.max(math.abs(BotY - TopY), Width / 2)), 12)
+            local SizeX = math.floor(math.max(Height / 1.5, Width))
+            local PosX = math.floor(TopX * 0.5 + BotX * 0.5 - SizeX * 0.5)
+            local PosY = math.floor(math.min(TopY, BotY))
+
+            return SizeX, Height, PosX, PosY, TopIsRendered, math.floor(rawDistance * 0.333)
         end
         
         function Esp:Lerp(start, finish, t)
@@ -8452,6 +8430,8 @@
 
             local CameraCFrame = Camera.CFrame
             local ViewportSize = Camera.ViewportSize
+            local fovTan = math.tan(math.rad(Camera.FieldOfView / 2))
+            local aspectRatio = ViewportSize.X / ViewportSize.Y
 
             for _,Data in Esp.Players do
                 if not Data.Info then
@@ -8500,8 +8480,8 @@
                     continue
                 end
 
-                local Distance = (RootPart.Position - CameraCFrame.Position).Magnitude
-                if Distance > MiscOptions["Render Distance"] then
+                local rawDist = (RootPart.Position - CameraCFrame.Position).Magnitude
+                if rawDist > MiscOptions["Render Distance"] then
                     if Holder.Visible then
                         Holder.Visible = false
                     end
@@ -8509,45 +8489,45 @@
                     continue
                 end
 
-                local BoxSize, BoxPos, OnScreen, Distance = Esp:BoxSolve(RootPart, CameraCFrame, ViewportSize)
+                local BSX, BSY, BPX, BPY, OnScreen, NewDist = Esp:BoxSolve(RootPart, CameraCFrame, ViewportSize, rawDist, fovTan, aspectRatio)
 
                 -- some exploits may be using ways to delete and break the box solve, prevents that
-                if Distance == nil then 
-                    if Holder.Visible then 
-                        Holder.Visible = false 
-                    end 
+                if BSX == nil then
+                    if Holder.Visible then
+                        Holder.Visible = false
+                    end
 
                     continue
-                end 
+                end
 
-                if Distance > MiscOptions["Render Distance"] and Holder.Visible then 
-                    Holder.Visible = false 
-                    continue 
-                end 
+                if NewDist > MiscOptions["Render Distance"] and Holder.Visible then
+                    Holder.Visible = false
+                    continue
+                end
 
-                if Holder.Visible ~= OnScreen and not (Distance > MiscOptions["Render Distance"]) then 
+                if Holder.Visible ~= OnScreen and not (NewDist > MiscOptions["Render Distance"]) then
                     Holder.Visible = OnScreen
-                end 
+                end
 
                 if not OnScreen then
                     continue
-                end 
+                end
 
-                local Pos = dim_offset(BoxPos.X, BoxPos.Y)
-                if Pos ~= Holder.Position then 
-                    Holder.Position = Pos
-                end 
-                
-                local Size = dim2(0, BoxSize.X, 0, BoxSize.Y)
-                if Size ~= Holder.Size then 
-                    Holder.Size = Size
-                end 
+                if Data.lastBpx ~= BPX or Data.lastBpy ~= BPY then
+                    Data.lastBpx, Data.lastBpy = BPX, BPY
+                    Holder.Position = dim_offset(BPX, BPY)
+                end
 
-                local DistanceLabel = Items.Distance
-                local Text = tostring( math.round(Distance) )  .. "m"
-                if DistanceLabel.Text ~= Text then 
-                    DistanceLabel.Text = Text
-                end 
+                if Data.lastBsx ~= BSX or Data.lastBsy ~= BSY then
+                    Data.lastBsx, Data.lastBsy = BSX, BSY
+                    Holder.Size = dim2(0, BSX, 0, BSY)
+                end
+
+                local roundedDist = math.round(NewDist)
+                if Data.lastRoundedDist ~= roundedDist then
+                    Data.lastRoundedDist = roundedDist
+                    Items.Distance.Text = roundedDist .. "m"
+                end
                 
                 -- if Options["Box Fill"] and Options["Box Spin"] then 
                 --     Items["Holder_gradient"].Rotation += Options["Box Spin Speed"] / 100
@@ -8870,6 +8850,6 @@
     Esp:Connection(Players.PlayerRemoving, function(player)
         Esp.RemovePlayer(player)
     end)
--- 
+-- XD
 
 return Library, Esp, MiscOptions, Options 
